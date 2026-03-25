@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Search Visualizer — 21CSC206T</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0c14;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e3a5f;
+    --accent: #00d4aa;
+    --accent2: #f97316;
+    --accent3: #a78bfa;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --node-default: #1e3a5f;
+    --node-visited: #065f46;
+    --node-frontier: #1e40af;
+    --node-path: #92400e;
+    --node-start: #14532d;
+    --node-end: #7f1d1d;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(0,212,170,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(10,12,20,0.9);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+  }
+
+  header h1 {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+  }
+
+  header h1 span { color: var(--accent); }
+
+  .subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .tab-bar {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    gap: 0;
+    padding: 0 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab {
+    padding: 14px 24px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .panel { display: none; }
+  .panel.active { display: flex; flex-direction: column; }
+
+  .main {
+    position: relative;
+    z-index: 1;
+    padding: 28px 32px;
+    display: grid;
+    gap: 20px;
+  }
+
+  /* ---- SEARCH PANEL ---- */
+  .search-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr 240px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .card-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  select, input[type="range"] {
+    width: 100%;
+    margin-bottom: 14px;
+  }
+
+  select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0c14;
+  }
+
+  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Grid */
+  .grid-area {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  #grid {
+    display: grid;
+    gap: 3px;
+    cursor: crosshair;
+  }
+
+  .cell {
+    width: 32px;
+    height: 32px;
+    border-radius: 5px;
+    transition: background 0.15s, transform 0.1s;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .cell:hover { transform: scale(1.1); }
+  .cell.empty { background: var(--node-default); }
+  .cell.wall { background: #1e293b; border: 1px solid #0f172a; }
+  .cell.start { background: var(--accent); box-shadow: 0 0 12px rgba(0,212,170,0.5); }
+  .cell.end { background: var(--accent2); box-shadow: 0 0 12px rgba(249,115,22,0.5); }
+  .cell.visited { background: #0f4c75; animation: visitAnim 0.3s ease; }
+  .cell.frontier { background: #1e40af; animation: frontierAnim 0.3s ease; }
+  .cell.path { background: var(--accent); opacity: 0.9; animation: pathAnim 0.4s ease; }
+
+  @keyframes visitAnim {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes frontierAnim {
+    0% { background: #60a5fa; }
+    100% { background: #1e40af; }
+  }
+  @keyframes pathAnim {
+    0% { background: #fbbf24; transform: scale(1.3); }
+    100% { background: var(--accent); transform: scale(1); }
+  }
+
+  .grid-tools {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .tool-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .tool-btn.active-tool { outline: 2px solid var(--accent); }
+
+  /* Stats */
+  .stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat:last-child { border-bottom: none; }
+  .stat-label { font-size: 12px; color: var(--muted); font-family: 'Space Mono', monospace; }
+  .stat-value { font-size: 18px; font-weight: 800; color: var(--accent); font-family: 'Space Mono', monospace; }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .legend-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+  }
+
+  /* Status bar */
+  .status-bar {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    min-height: 40px;
+    width: 100%;
+    border: 1px solid var(--border);
+  }
+
+  /* ---- MINIMAX PANEL ---- */
+  .minimax-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .ttt-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 260px;
+    margin: 0 auto;
+  }
+
+  .ttt-cell {
+    width: 80px;
+    height: 80px;
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    font-size: 36px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .ttt-cell:hover:not(.played) { border-color: var(--accent); background: var(--surface); }
+  .ttt-cell.x { color: var(--accent); border-color: var(--accent); }
+  .ttt-cell.o { color: var(--accent2); border-color: var(--accent2); }
+  .ttt-cell.win { background: rgba(0,212,170,0.1); animation: winPulse 0.5s ease; }
+  .ttt-cell.played { cursor: default; }
+
+  @keyframes winPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
+  .game-status {
+    padding: 16px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    background: var(--surface2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-top: 12px;
+  }
+
+  .tree-vis {
+    overflow: auto;
+    max-height: 400px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    line-height: 1.6;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 14px;
+    border: 1px solid var(--border);
+  }
+
+  .tree-node {
+    padding: 3px 0;
+    padding-left: calc(var(--depth) * 16px);
+    position: relative;
+  }
+
+  .tree-node::before {
+    content: '├─';
+    margin-right: 4px;
+    color: var(--border);
+  }
+
+  .tree-node.max { color: var(--accent); }
+  .tree-node.min { color: var(--accent2); }
+  .tree-node.pruned { color: var(--accent3); opacity: 0.6; }
+  .tree-node.pruned::after { content: ' ✂ PRUNED'; }
+
+  /* ---- ABOUT PANEL ---- */
+  .about-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .unit-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .unit-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .unit-card:nth-child(1)::before { background: var(--accent); }
+  .unit-card:nth-child(2)::before { background: var(--accent2); }
+  .unit-card:nth-child(3)::before { background: var(--accent3); }
+
+  .unit-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 48px;
+    font-weight: 700;
+    opacity: 0.08;
+    position: absolute;
+    right: 16px;
+    top: 8px;
+    line-height: 1;
+  }
+
+  .unit-title {
+    font-size: 14px;
+    font-weight: 800;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+
+  .concept-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    margin: 3px 3px 3px 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .algo-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-top: 12px;
+  }
+
+  .info-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: rgba(0,212,170,0.1);
+    border: 1px solid rgba(0,212,170,0.3);
+    color: var(--accent);
+  }
+
+  .speed-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-top: -10px;
+    margin-bottom: 10px;
+    text-align: right;
+  }
+
+  .drawing-hint {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">21CSC206T</div>
+  <div>
+    <h1>AI <span>Search</span> Visualizer</h1>
+    <div class="subtitle">Units I, II & III — Path Finding + Game AI</div>
+  </div>
+</header>
+
+<div class="tab-bar">
+  <div class="tab active" onclick="switchTab('search')">PATH SEARCH</div>
+  <div class="tab" onclick="switchTab('minimax')">MINIMAX / TIC-TAC-TOE</div>
+  <div class="tab" onclick="switchTab('about')">ABOUT THIS APP</div>
+</div>
+
+<!-- SEARCH PANEL -->
+<div id="search" class="panel active">
+<div class="main">
+  <div class="search-layout">
+    <!-- Controls -->
+    <div class="card">
+      <div class="card-title">⚙ CONTROLS</div>
+
+      <label>Algorithm</label>
+      <select id="algo">
+        <option value="bfs">BFS — Breadth First Search</option>
+        <option value="dfs">DFS — Depth First Search</option>
+        <option value="ucs">UCS — Uniform Cost Search</option>
+        <option value="astar">A* — Best First (Heuristic)</option>
+        <option value="greedy">Greedy Best-First Search</option>
+      </select>
+
+      <label>Grid Size</label>
+      <select id="gridSize" onchange="initGrid()">
+        <option value="15">15 × 15</option>
+        <option value="20" selected>20 × 20</option>
+        <option value="25">25 × 25</option>
+      </select>
+
+      <label>Animation Speed</label>
+      <input type="range" id="speed" min="1" max="10" value="5">
+      <div class="speed-label" id="speedLabel">Medium</div>
+
+      <button class="btn btn-primary" id="runBtn" onclick="runAlgorithm()">▶ RUN ALGORITHM</button>
+      <button class="btn btn-secondary" onclick="clearPath()">↺ CLEAR PATH</button>
+      <button class="btn btn-secondary" onclick="generateMaze()">⬛ GENERATE MAZE</button>
+      <button class="btn btn-secondary" onclick="initGrid()">✕ RESET GRID</button>
+
+      <div style="margin-top:12px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <label>Drawing Mode</label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <button class="tool-btn active-tool" id="tool-wall" style="background:#1e293b; color:#94a3b8;" onclick="setTool('wall')">■ WALL</button>
+          <button class="tool-btn" id="tool-start" style="background:rgba(0,212,170,0.2); color:var(--accent);" onclick="setTool('start')">★ START</button>
+          <button class="tool-btn" id="tool-end" style="background:rgba(249,115,22,0.2); color:var(--accent2);" onclick="setTool('end')">● END</button>
+          <button class="tool-btn" id="tool-erase" style="background:var(--surface2); color:var(--muted);" onclick="setTool('erase')">✕ ERASE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="grid-area">
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Start</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>End</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1e293b"></div>Wall</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#0f4c75"></div>Visited</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1e40af"></div>Frontier</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Path</div>
+      </div>
+      <div id="grid"></div>
+      <div class="drawing-hint">Click to draw walls · Drag to paint · Right-click to erase</div>
+      <div class="status-bar" id="statusBar">Select an algorithm and click RUN ALGORITHM to begin.</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-title">📊 STATISTICS</div>
+      <div class="stat">
+        <span class="stat-label">Nodes Visited</span>
+        <span class="stat-value" id="statVisited">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Path Length</span>
+        <span class="stat-value" id="statPath">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Path Cost</span>
+        <span class="stat-value" id="statCost">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Time (ms)</span>
+        <span class="stat-value" id="statTime">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Algorithm</span>
+        <span class="stat-value" style="font-size:13px;" id="statAlgo">—</span>
+      </div>
+
+      <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <div class="card-title">ℹ ALGORITHM INFO</div>
+        <div id="algoInfo" style="font-size:12px; color:var(--muted); line-height:1.7; font-family:'Space Mono',monospace;">
+          Select an algorithm above to see its description.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- MINIMAX PANEL -->
+<div id="minimax" class="panel">
+<div class="main">
+  <div class="minimax-layout">
+    <div class="card">
+      <div class="card-title">🎮 TIC-TAC-TOE (MINIMAX AI)</div>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:16px; font-family:'Space Mono',monospace;">
+        You play as ✕. The AI plays as ○ using the Minimax algorithm with Alpha-Beta Pruning (Unit III).
+      </p>
+      <div class="ttt-board" id="tttBoard"></div>
+      <div class="game-status" id="gameStatus">Your turn — click a cell to play ✕</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
+        <button class="btn btn-primary" onclick="resetGame()">↺ NEW GAME</button>
+        <button class="btn btn-secondary" onclick="toggleDifficulty()">MODE: <span id="modeLabel">HARD</span></button>
+      </div>
+
+      <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+        <div class="card-title">📈 SCORE</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; text-align:center;">
+          <div>
+            <div style="font-size:28px; font-weight:800; color:var(--accent); font-family:'Space Mono',monospace;" id="scoreX">0</div>
+            <div style="font-size:11px; color:var(--muted); font-family:'Space Mono',monospace;">YOU (✕)</div>
+          </div>
+          <div>
+            <div style="font-size:28px; font-weight:800; color:var(--muted); font-family:'Space Mono',monospace;" id="scoreDraw">0</div>
+            <div style="font-size:11px; color:var(--muted); font-family:'Space Mono',monospace;">DRAW</div>
+          </div>
+          <div>
+            <div style="font-size:28px; font-weight:800; color:var(--accent2); font-family:'Space Mono',monospace;" id="scoreO">0</div>
+            <div style="font-size:11px; color:var(--muted); font-family:'Space Mono',monospace;">AI (○)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌲 MINIMAX DECISION TREE</div>
+      <p style="font-size:11px; color:var(--muted); margin-bottom:12px; font-family:'Space Mono',monospace;">
+        Shows nodes explored by the AI. <span style="color:var(--accent)">Green = MAX (AI)</span> · <span style="color:var(--accent2)">Orange = MIN (You)</span> · <span style="color:var(--accent3)">Purple = Pruned</span>
+      </p>
+      <div class="tree-vis" id="treeVis">
+        Play a move to see the AI's decision tree...
+      </div>
+      <div class="stat" style="margin-top:12px;">
+        <span class="stat-label">Nodes Evaluated</span>
+        <span class="stat-value" id="mmNodes">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Nodes Pruned</span>
+        <span class="stat-value" id="mmPruned">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Best Score</span>
+        <span class="stat-value" id="mmScore">—</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ABOUT PANEL -->
+<div id="about" class="panel">
+<div class="main">
+  <div class="about-grid">
+    <div class="unit-card">
+      <div class="unit-num">I</div>
+      <div class="info-badge">Unit I</div>
+      <div class="unit-title">Introduction to AI & Problem Solving</div>
+      <div>
+        <span class="concept-tag">State Space</span>
+        <span class="concept-tag">Search</span>
+        <span class="concept-tag">Problem Formulation</span>
+        <span class="concept-tag">AI Techniques</span>
+        <span class="concept-tag">Toy Problems</span>
+      </div>
+      <div class="algo-desc">
+        This app demonstrates the fundamental AI concept of <b>state space search</b> — formulating a problem as a grid (state space) with a start and goal state, then finding a solution path through search. This directly applies the Problem Solving Process from Unit I.
+      </div>
+    </div>
+
+    <div class="unit-card">
+      <div class="unit-num">II</div>
+      <div class="info-badge">Unit II</div>
+      <div class="unit-title">Data Structures & Search Algorithms</div>
+      <div>
+        <span class="concept-tag">BFS</span>
+        <span class="concept-tag">DFS</span>
+        <span class="concept-tag">UCS</span>
+        <span class="concept-tag">A* Algorithm</span>
+        <span class="concept-tag">Heuristic Search</span>
+        <span class="concept-tag">Queues / Stacks</span>
+      </div>
+      <div class="algo-desc">
+        The PATH SEARCH tab implements all Unit II algorithms. <b>BFS</b> uses a queue (FIFO), <b>DFS</b> uses a stack (LIFO), <b>UCS</b> uses a priority queue on cost, and <b>A*</b> uses Manhattan distance as a heuristic — combining cost and heuristic (informed search).
+      </div>
+    </div>
+
+    <div class="unit-card">
+      <div class="unit-num">III</div>
+      <div class="info-badge">Unit III</div>
+      <div class="unit-title">Adversarial Search & Intelligent Agents</div>
+      <div>
+        <span class="concept-tag">Minimax</span>
+        <span class="concept-tag">Alpha-Beta Pruning</span>
+        <span class="concept-tag">Game Tree</span>
+        <span class="concept-tag">Rational Agent</span>
+        <span class="concept-tag">MAX / MIN Players</span>
+      </div>
+      <div class="algo-desc">
+        The MINIMAX tab implements an <b>Intelligent Agent</b> (the AI player) using the Minimax algorithm with <b>Alpha-Beta Pruning</b>. The AI acts as a rational agent — it perceives the board state, applies DFS on the game tree, and selects the optimal move, exactly as taught in Unit III.
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 0;">
+    <div class="card-title">🏗 APPLICATION ARCHITECTURE</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <div>
+        <div style="font-size:13px; font-weight:600; margin-bottom:8px;">Tools & Technologies</div>
+        <div style="font-size:13px; color:var(--muted); line-height:1.8;">
+          • <b>HTML5 / CSS3</b> — Single-file web application<br>
+          • <b>Vanilla JavaScript</b> — Algorithm implementation<br>
+          • <b>CSS Grid / Flexbox</b> — Responsive layout<br>
+          • <b>CSS Animations</b> — Step-by-step visualization<br>
+          • <b>Priority Queue</b> — For UCS and A* algorithms<br>
+          • <b>Recursive Minimax</b> — With Alpha-Beta pruning
+        </div>
+      </div>
+      <div>
+        <div style="font-size:13px; font-weight:600; margin-bottom:8px;">Features</div>
+        <div style="font-size:13px; color:var(--muted); line-height:1.8;">
+          • Interactive grid — draw walls, set start/end<br>
+          • 5 search algorithms with live animation<br>
+          • Statistics: nodes visited, path cost, time<br>
+          • Maze generator using recursive backtracking<br>
+          • Tic-Tac-Toe with unbeatable Minimax AI<br>
+          • Decision tree visualization with pruning
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ===================== SEARCH ENGINE =====================
+let GRID_SIZE = 20;
+let grid = [];
+let startCell = { r: 2, c: 2 };
+let endCell = { r: 17, c: 17 };
+let isRunning = false;
+let isDragging = false;
+let currentTool = 'wall';
+let animSpeed = 5;
+
+const algoDescriptions = {
+  bfs: "BFS explores nodes level by level using a QUEUE. It guarantees the SHORTEST PATH in an unweighted graph. Uses O(V) space. Uninformed search.",
+  dfs: "DFS explores as far as possible before backtracking, using a STACK. Does NOT guarantee shortest path. Memory efficient. Uninformed search.",
+  ucs: "UCS expands the lowest-cost node first using a PRIORITY QUEUE. Equivalent to BFS on uniform costs, but optimal for weighted graphs.",
+  astar: "A* uses f(n)=g(n)+h(n) where g=cost so far, h=Manhattan heuristic. OPTIMAL + COMPLETE when h is admissible. Informed search.",
+  greedy: "Greedy BFS uses only the heuristic h(n), ignoring actual cost. FAST but NOT optimal. May find longer paths."
+};
+
+function initGrid() {
+  GRID_SIZE = parseInt(document.getElementById('gridSize').value);
+  grid = Array.from({length: GRID_SIZE}, () => Array(GRID_SIZE).fill('empty'));
+  startCell = { r: 1, c: 1 };
+  endCell = { r: GRID_SIZE-2, c: GRID_SIZE-2 };
+  grid[startCell.r][startCell.c] = 'start';
+  grid[endCell.r][endCell.c] = 'end';
+  renderGrid();
+  resetStats();
+  updateAlgoInfo();
+}
+
+function renderGrid() {
+  const g = document.getElementById('grid');
+  g.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 32px)`;
+  g.innerHTML = '';
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      const cell = document.createElement('div');
+      cell.className = `cell ${grid[r][c]}`;
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.addEventListener('mousedown', (e) => { e.preventDefault(); isDragging = true; handleCellClick(r, c); });
+      cell.addEventListener('mousemove', () => { if (isDragging) handleCellClick(r, c); });
+      cell.addEventListener('contextmenu', (e) => { e.preventDefault(); handleRightClick(r, c); });
+      g.appendChild(cell);
+    }
+  }
+  document.addEventListener('mouseup', () => { isDragging = false; });
+}
+
+function handleCellClick(r, c) {
+  if (isRunning) return;
+  if (currentTool === 'wall') {
+    if (grid[r][c] === 'empty') { grid[r][c] = 'wall'; updateCell(r, c); }
+  } else if (currentTool === 'start') {
+    grid[startCell.r][startCell.c] = 'empty'; updateCell(startCell.r, startCell.c);
+    startCell = { r, c }; grid[r][c] = 'start'; updateCell(r, c);
+  } else if (currentTool === 'end') {
+    grid[endCell.r][endCell.c] = 'empty'; updateCell(endCell.r, endCell.c);
+    endCell = { r, c }; grid[r][c] = 'end'; updateCell(r, c);
+  } else if (currentTool === 'erase') {
+    if (grid[r][c] === 'wall') { grid[r][c] = 'empty'; updateCell(r, c); }
+  }
+}
+
+function handleRightClick(r, c) {
+  if (isRunning) return;
+  if (grid[r][c] === 'wall') { grid[r][c] = 'empty'; updateCell(r, c); }
+}
+
+function updateCell(r, c) {
+  const cell = document.querySelector(`#grid .cell[data-r="${r}"][data-c="${c}"]`);
+  if (cell) {
+    cell.className = `cell ${grid[r][c]}`;
+  }
+}
+
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-tool'));
+  document.getElementById(`tool-${tool}`).classList.add('active-tool');
+}
+
+function updateAlgoInfo() {
+  const algo = document.getElementById('algo').value;
+  document.getElementById('algoInfo').textContent = algoDescriptions[algo];
+  document.getElementById('statAlgo').textContent = algo.toUpperCase();
+}
+
+document.getElementById('algo').addEventListener('change', updateAlgoInfo);
+document.getElementById('speed').addEventListener('input', function() {
+  animSpeed = parseInt(this.value);
+  const labels = ['', 'Slowest', 'Very Slow', 'Slow', 'Slow-Med', 'Medium', 'Med-Fast', 'Fast', 'Very Fast', 'Fastest', 'Instant'];
+  document.getElementById('speedLabel').textContent = labels[animSpeed];
+});
+
+function resetStats() {
+  document.getElementById('statVisited').textContent = '0';
+  document.getElementById('statPath').textContent = '0';
+  document.getElementById('statCost').textContent = '0';
+  document.getElementById('statTime').textContent = '0';
+  document.getElementById('statusBar').textContent = 'Select an algorithm and click RUN ALGORITHM to begin.';
+}
+
+function clearPath() {
+  for (let r = 0; r < GRID_SIZE; r++)
+    for (let c = 0; c < GRID_SIZE; c++)
+      if (['visited', 'frontier', 'path'].includes(grid[r][c])) {
+        grid[r][c] = 'empty';
+        updateCell(r, c);
+      }
+  resetStats();
+}
+
+// Priority Queue
+class MinHeap {
+  constructor() { this.heap = []; }
+  push(item) {
+    this.heap.push(item);
+    let i = this.heap.length - 1;
+    while (i > 0) {
+      const p = Math.floor((i - 1) / 2);
+      if (this.heap[p][0] <= this.heap[i][0]) break;
+      [this.heap[p], this.heap[i]] = [this.heap[i], this.heap[p]];
+      i = p;
+    }
+  }
+  pop() {
+    const top = this.heap[0];
+    const last = this.heap.pop();
+    if (this.heap.length > 0) {
+      this.heap[0] = last;
+      let i = 0;
+      while (true) {
+        let s = i, l = 2*i+1, r = 2*i+2;
+        if (l < this.heap.length && this.heap[l][0] < this.heap[s][0]) s = l;
+        if (r < this.heap.length && this.heap[r][0] < this.heap[s][0]) s = r;
+        if (s === i) break;
+        [this.heap[i], this.heap[s]] = [this.heap[s], this.heap[i]];
+        i = s;
+      }
+    }
+    return top;
+  }
+  get size() { return this.heap.length; }
+}
+
+function heuristic(r, c) {
+  return Math.abs(r - endCell.r) + Math.abs(c - endCell.c);
+}
+
+function getNeighbors(r, c) {
+  const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+  return dirs.map(([dr,dc]) => [r+dr, c+dc])
+    .filter(([nr,nc]) => nr>=0 && nr<GRID_SIZE && nc>=0 && nc<GRID_SIZE && grid[nr][nc] !== 'wall');
+}
+
+async function runAlgorithm() {
+  if (isRunning) return;
+  clearPath();
+  isRunning = true;
+  document.getElementById('runBtn').disabled = true;
+  const algo = document.getElementById('algo').value;
+  const start = performance.now();
+  const delay = () => new Promise(r => setTimeout(r, Math.max(1, 110 - animSpeed * 11)));
+
+  let visited = 0;
+  const parent = {};
+  const key = (r, c) => `${r},${c}`;
+
+  const markVisited = async (r, c) => {
+    if (grid[r][c] !== 'start' && grid[r][c] !== 'end') {
+      grid[r][c] = 'visited';
+      updateCell(r, c);
+    }
+    visited++;
+    document.getElementById('statVisited').textContent = visited;
+    document.getElementById('statusBar').textContent = `Exploring node (${r}, ${c}) — ${visited} nodes visited`;
+    await delay();
+  };
+
+  const markFrontier = (r, c) => {
+    if (grid[r][c] !== 'start' && grid[r][c] !== 'end' && grid[r][c] !== 'visited') {
+      grid[r][c] = 'frontier';
+      updateCell(r, c);
+    }
+  };
+
+  let found = false;
+  const sr = startCell.r, sc = startCell.c;
+  const er = endCell.r, ec = endCell.c;
+
+  if (algo === 'bfs') {
+    const queue = [[sr, sc]];
+    const seen = new Set([key(sr, sc)]);
+    while (queue.length > 0 && !found) {
+      const [r, c] = queue.shift();
+      await markVisited(r, c);
+      for (const [nr, nc] of getNeighbors(r, c)) {
+        if (!seen.has(key(nr, nc))) {
+          seen.add(key(nr, nc));
+          parent[key(nr, nc)] = [r, c];
+          markFrontier(nr, nc);
+          if (nr === er && nc === ec) { found = true; break; }
+          queue.push([nr, nc]);
+        }
+      }
+    }
+  } else if (algo === 'dfs') {
+    const stack = [[sr, sc]];
+    const seen = new Set([key(sr, sc)]);
+    while (stack.length > 0 && !found) {
+      const [r, c] = stack.pop();
+      await markVisited(r, c);
+      for (const [nr, nc] of getNeighbors(r, c)) {
+        if (!seen.has(key(nr, nc))) {
+          seen.add(key(nr, nc));
+          parent[key(nr, nc)] = [r, c];
+          markFrontier(nr, nc);
+          if (nr === er && nc === ec) { found = true; break; }
+          stack.push([nr, nc]);
+        }
+      }
+    }
+  } else if (algo === 'ucs') {
+    const pq = new MinHeap();
+    pq.push([0, sr, sc]);
+    const cost = { [key(sr, sc)]: 0 };
+    while (pq.size > 0 && !found) {
+      const [g, r, c] = pq.pop();
+      if (g > (cost[key(r,c)] ?? Infinity)) continue;
+      await markVisited(r, c);
+      if (r === er && c === ec) { found = true; break; }
+      for (const [nr, nc] of getNeighbors(r, c)) {
+        const ng = g + 1;
+        if (ng < (cost[key(nr,nc)] ?? Infinity)) {
+          cost[key(nr,nc)] = ng;
+          parent[key(nr,nc)] = [r, c];
+          markFrontier(nr, nc);
+          pq.push([ng, nr, nc]);
+        }
+      }
+    }
+  } else if (algo === 'astar') {
+    const pq = new MinHeap();
+    pq.push([heuristic(sr,sc), 0, sr, sc]);
+    const g = { [key(sr,sc)]: 0 };
+    while (pq.size > 0 && !found) {
+      const [f, gn, r, c] = pq.pop();
+      if (gn > (g[key(r,c)] ?? Infinity)) continue;
+      await markVisited(r, c);
+      if (r === er && c === ec) { found = true; break; }
+      for (const [nr, nc] of getNeighbors(r, c)) {
+        const ng = gn + 1;
+        if (ng < (g[key(nr,nc)] ?? Infinity)) {
+          g[key(nr,nc)] = ng;
+          parent[key(nr,nc)] = [r, c];
+          markFrontier(nr, nc);
+          pq.push([ng + heuristic(nr,nc), ng, nr, nc]);
+        }
+      }
+    }
+  } else if (algo === 'greedy') {
+    const pq = new MinHeap();
+    pq.push([heuristic(sr,sc), sr, sc]);
+    const seen = new Set([key(sr,sc)]);
+    while (pq.size > 0 && !found) {
+      const [h, r, c] = pq.pop();
+      await markVisited(r, c);
+      if (r === er && c === ec) { found = true; break; }
+      for (const [nr, nc] of getNeighbors(r, c)) {
+        if (!seen.has(key(nr,nc))) {
+          seen.add(key(nr,nc));
+          parent[key(nr,nc)] = [r, c];
+          markFrontier(nr, nc);
+          pq.push([heuristic(nr,nc), nr, nc]);
+        }
+      }
+    }
+  }
+
+  const elapsed = Math.round(performance.now() - start);
+  document.getElementById('statTime').textContent = elapsed;
+
+  if (found) {
+    // Trace path
+    let path = [];
+    let cur = [er, ec];
+    while (cur) {
+      path.push(cur);
+      const pk = key(cur[0], cur[1]);
+      cur = parent[pk] ? parent[pk] : null;
+    }
+    path.reverse();
+    for (const [r, c] of path) {
+      if (grid[r][c] !== 'start' && grid[r][c] !== 'end') {
+        grid[r][c] = 'path'; updateCell(r, c);
+      }
+      await new Promise(r => setTimeout(r, 30));
+    }
+    document.getElementById('statPath').textContent = path.length;
+    document.getElementById('statCost').textContent = path.length - 1;
+    document.getElementById('statusBar').textContent = `✓ Path found! ${path.length} steps, ${visited} nodes explored.`;
+  } else {
+    document.getElementById('statusBar').textContent = `✗ No path found! Explored ${visited} nodes.`;
+  }
+
+  isRunning = false;
+  document.getElementById('runBtn').disabled = false;
+}
+
+function generateMaze() {
+  if (isRunning) return;
+  // Recursive backtracking maze
+  for (let r = 0; r < GRID_SIZE; r++)
+    for (let c = 0; c < GRID_SIZE; c++)
+      grid[r][c] = (r % 2 === 0 || c % 2 === 0) ? 'wall' : 'empty';
+
+  const visit = (r, c) => {
+    const dirs = [[0,2],[0,-2],[2,0],[-2,0]].sort(() => Math.random()-0.5);
+    for (const [dr, dc] of dirs) {
+      const nr = r+dr, nc = c+dc;
+      if (nr>0 && nr<GRID_SIZE-1 && nc>0 && nc<GRID_SIZE-1 && grid[nr][nc] === 'wall') {
+        grid[r+dr/2][c+dc/2] = 'empty';
+        grid[nr][nc] = 'empty';
+        visit(nr, nc);
+      }
+    }
+  };
+  visit(1, 1);
+  grid[startCell.r][startCell.c] = 'start';
+  grid[endCell.r][endCell.c] = 'end';
+  renderGrid();
+  resetStats();
+}
+
+// ===================== MINIMAX =====================
+let board = Array(9).fill(null);
+let gameOver = false;
+let hardMode = true;
+let scores = { X: 0, O: 0, D: 0 };
+let mmNodesCount = 0;
+let mmPrunedCount = 0;
+let treeLog = [];
+
+function switchTab(tab) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  document.querySelectorAll('.tab')[['search','minimax','about'].indexOf(tab)].classList.add('active');
+}
+
+function renderTTT() {
+  const b = document.getElementById('tttBoard');
+  b.innerHTML = '';
+  const wins = checkWin(board);
+  const winCells = wins ? wins.line : [];
+  board.forEach((v, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'ttt-cell' + (v ? ` ${v.toLowerCase()} played` : '');
+    if (winCells.includes(i)) cell.classList.add('win');
+    cell.textContent = v === 'X' ? '✕' : v === 'O' ? '○' : '';
+    if (!v && !gameOver) cell.addEventListener('click', () => playerMove(i));
+    b.appendChild(cell);
+  });
+}
+
+function playerMove(i) {
+  if (board[i] || gameOver) return;
+  board[i] = 'X';
+  renderTTT();
+  const result = checkWin(board);
+  if (result) { endGame(result); return; }
+  if (board.every(v => v)) { endGame(null); return; }
+  document.getElementById('gameStatus').textContent = 'AI is thinking...';
+  setTimeout(aiMove, 300);
+}
+
+function aiMove() {
+  mmNodesCount = 0;
+  mmPrunedCount = 0;
+  treeLog = [];
+  let best = -Infinity, move = -1;
+  let alpha = -Infinity, beta = Infinity;
+  for (let i = 0; i < 9; i++) {
+    if (!board[i]) {
+      board[i] = 'O';
+      const score = minimax(board, 0, false, alpha, beta, 1);
+      board[i] = null;
+      if (score > best) { best = score; move = i; }
+      alpha = Math.max(alpha, best);
+    }
+  }
+  document.getElementById('mmNodes').textContent = mmNodesCount;
+  document.getElementById('mmPruned').textContent = mmPrunedCount;
+  document.getElementById('mmScore').textContent = best;
+  renderTreeVis();
+  if (move !== -1) {
+    board[move] = 'O';
+    renderTTT();
+    const result = checkWin(board);
+    if (result) { endGame(result); return; }
+    if (board.every(v => v)) { endGame(null); return; }
+    document.getElementById('gameStatus').textContent = 'Your turn — click a cell to play ✕';
+  }
+}
+
+function minimax(b, depth, isMax, alpha, beta, treeDepth) {
+  mmNodesCount++;
+  const result = checkWin(b);
+  if (result) return result.winner === 'O' ? 10 - depth : depth - 10;
+  if (b.every(v => v)) return 0;
+  if (!hardMode && depth > 2 && Math.random() < 0.4) return Math.random() > 0.5 ? 5 : -5;
+
+  if (isMax) {
+    let best = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (!b[i]) {
+        b[i] = 'O';
+        const v = minimax(b, depth+1, false, alpha, beta, treeDepth+1);
+        b[i] = null;
+        if (treeDepth <= 2) treeLog.push({ depth: treeDepth, type: 'max', pos: i, score: v });
+        best = Math.max(best, v);
+        alpha = Math.max(alpha, best);
+        if (beta <= alpha) { mmPrunedCount++; if (treeDepth <= 2) treeLog.push({ depth: treeDepth, type: 'pruned', pos: i }); break; }
+      }
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (!b[i]) {
+        b[i] = 'X';
+        const v = minimax(b, depth+1, true, alpha, beta, treeDepth+1);
+        b[i] = null;
+        if (treeDepth <= 2) treeLog.push({ depth: treeDepth, type: 'min', pos: i, score: v });
+        best = Math.min(best, v);
+        beta = Math.min(beta, best);
+        if (beta <= alpha) { mmPrunedCount++; if (treeDepth <= 2) treeLog.push({ depth: treeDepth, type: 'pruned', pos: i }); break; }
+      }
+    }
+    return best;
+  }
+}
+
+function renderTreeVis() {
+  const vis = document.getElementById('treeVis');
+  if (treeLog.length === 0) { vis.textContent = 'No tree data.'; return; }
+  vis.innerHTML = treeLog.slice(0, 40).map(node => {
+    const cls = node.type === 'pruned' ? 'pruned' : node.type;
+    const label = node.type === 'max' ? '▲ MAX' : node.type === 'min' ? '▼ MIN' : '✂ CUT';
+    const score = node.score !== undefined ? ` → score: ${node.score}` : '';
+    return `<div class="tree-node ${cls}" style="--depth:${node.depth}">${label} pos[${node.pos}]${score}</div>`;
+  }).join('') + (treeLog.length > 40 ? `<div style="color:var(--muted); padding:4px 8px;">... +${treeLog.length-40} more nodes</div>` : '');
+}
+
+function checkWin(b) {
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const line of lines) {
+    const [a, bb, c] = line;
+    if (b[a] && b[a] === b[bb] && b[a] === b[c]) return { winner: b[a], line };
+  }
+  return null;
+}
+
+function endGame(result) {
+  gameOver = true;
+  if (result) {
+    const msg = result.winner === 'X' ? '🎉 You Win! (Impressive!)' : '🤖 AI Wins! (Minimax is optimal)';
+    document.getElementById('gameStatus').textContent = msg;
+    if (result.winner === 'X') scores.X++;
+    else scores.O++;
+  } else {
+    document.getElementById('gameStatus').textContent = "🤝 Draw! (Expected vs optimal AI)";
+    scores.D++;
+  }
+  document.getElementById('scoreX').textContent = scores.X;
+  document.getElementById('scoreO').textContent = scores.O;
+  document.getElementById('scoreDraw').textContent = scores.D;
+}
+
+function resetGame() {
+  board = Array(9).fill(null);
+  gameOver = false;
+  document.getElementById('gameStatus').textContent = 'Your turn — click a cell to play ✕';
+  document.getElementById('treeVis').textContent = 'Play a move to see the AI\'s decision tree...';
+  document.getElementById('mmNodes').textContent = '0';
+  document.getElementById('mmPruned').textContent = '0';
+  document.getElementById('mmScore').textContent = '—';
+  renderTTT();
+}
+
+function toggleDifficulty() {
+  hardMode = !hardMode;
+  document.getElementById('modeLabel').textContent = hardMode ? 'HARD' : 'EASY';
+  resetGame();
+}
+
+// Init
+initGrid();
+resetGame();
+updateAlgoInfo();
+</script>
+</body>
+</html>
